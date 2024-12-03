@@ -1,0 +1,83 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
+
+
+static const float e = 2.71828183;
+
+int iterations;
+int colormap_ids_size;
+
+StructuredBuffer<int> colormap;
+
+float3 num_to_rgb(int x)
+{
+    float i = x * 255 / colormap_ids_size;
+    float r = round(sin(0.024 * i + 0) * 127 + 128);
+    float g = round(sin(0.024 * i + 2) * 127 + 128);
+    float b = round(sin(0.024 * i + 4) * 127 + 128);
+    if (x == 4242)
+    {
+        return float3(0, 0, 0);
+    }
+    return float3(r / 255, g / 255, b / 255);
+}
+
+struct d_buffer
+{
+    double x_start;
+    double x_range;
+    double y_start;
+    double y_range;
+};
+
+
+float Resolution;
+
+StructuredBuffer<d_buffer> data;
+
+double x_start;
+double x_range;
+double y_start;
+double y_range;
+
+
+[numthreads(8,8,1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    x_start = data[0].x_start;
+    x_range = data[0].x_range;
+    y_start = data[0].y_start;
+    y_range = data[0].y_range;
+    // TODO: insert actual code here!
+    double x = id.x / Resolution;
+    double y = id.y / Resolution;
+
+    x = x_range * x + x_start;
+    y = y_range * y + y_start;
+
+    double2 c = double2(0.0, 0.0);
+    double2 z = double2(x, y);
+    float escape = 0;
+    for (int i = 0; i < iterations; i++)
+    {
+        // c = c ^2 + z
+        c = double2(pow(c.x, 2.0) - pow(c.y, 2.0), c.x * c.y + c.y * c.x) + z;
+        // |c| = sqrt(a^2 + b^2)
+
+        double abs = sqrt(pow(c.x, 2.0) + pow(c.y, 2.0));
+        if (abs >= 2)
+        {
+            escape = i;
+            break;
+        }
+    }
+
+    float3 color = num_to_rgb(colormap[int(round((escape / iterations) * colormap_ids_size))]);
+
+
+    Result[id.xy] = float4(color.x, color.y, color.z, escape / iterations);
+}
